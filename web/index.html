@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>SkinQuant — CS2 饰品量化研究团队</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  .container { max-width: 1400px; margin: 0 auto; }
+  h1 {
+    font-size: 28px;
+    margin-bottom: 6px;
+    background: linear-gradient(90deg, #f59e0b, #ef4444);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .subtitle { color: #94a3b8; margin-bottom: 20px; font-size: 14px; }
+  .layout { display: grid; grid-template-columns: 400px 1fr; gap: 20px; }
+  .card {
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 12px;
+    padding: 20px;
+    backdrop-filter: blur(10px);
+  }
+  .input-section { position: sticky; top: 20px; }
+  .input-section h3 { margin-bottom: 12px; color: #f1f5f9; }
+  textarea {
+    width: 100%; min-height: 100px; padding: 12px;
+    background: rgba(15, 23, 42, 0.6); border: 1px solid #475569;
+    border-radius: 8px; color: #e2e8f0; font-size: 14px;
+    resize: vertical; font-family: inherit;
+  }
+  textarea:focus { outline: none; border-color: #f59e0b; }
+  button {
+    width: 100%; margin-top: 12px; padding: 12px 24px;
+    background: linear-gradient(90deg, #f59e0b, #ef4444);
+    color: white; border: none; border-radius: 8px;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: transform 0.15s;
+  }
+  button:hover:not(:disabled) { transform: translateY(-1px); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .examples { margin-top: 16px; font-size: 12px; color: #94a3b8; }
+  .example-chip {
+    display: inline-block; padding: 4px 10px; margin: 4px 4px 0 0;
+    background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 12px; font-size: 12px; cursor: pointer; color: #fbbf24;
+  }
+  .example-chip:hover { background: rgba(245, 158, 11, 0.3); }
+
+  /* 时间线 */
+  .timeline-card { min-height: 200px; }
+  .timeline-card h3 { margin-bottom: 16px; color: #f1f5f9; }
+  .timeline { list-style: none; position: relative; padding-left: 28px; }
+  .timeline::before {
+    content: ''; position: absolute; left: 8px; top: 8px; bottom: 8px;
+    width: 2px; background: rgba(148, 163, 184, 0.2);
+  }
+  .timeline-item {
+    position: relative; padding: 8px 0 8px 8px;
+    opacity: 0; transform: translateX(-10px);
+    animation: slideIn 0.3s forwards;
+  }
+  @keyframes slideIn { to { opacity: 1; transform: translateX(0); } }
+  .timeline-item::before {
+    content: ''; position: absolute; left: -26px; top: 12px;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #475569; border: 2px solid #1e293b;
+  }
+  .timeline-item.running::before { background: #fbbf24; animation: pulse 1s infinite; }
+  .timeline-item.done::before { background: #22c55e; }
+  .timeline-item.error::before { background: #ef4444; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .tl-title { font-size: 14px; color: #e2e8f0; font-weight: 500; }
+  .tl-time { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+  /* 研报 */
+  .report { margin-top: 20px; display: none; }
+  .report.show { display: block; }
+  .report-content {
+    background: rgba(15, 23, 42, 0.6); border-radius: 8px;
+    padding: 24px; line-height: 1.8;
+  }
+  .report-content h2 { font-size: 22px; margin: 16px 0 12px; color: #fbbf24; }
+  .report-content h3 { font-size: 17px; margin: 14px 0 8px; color: #f59e0b; }
+  .report-content p { margin: 8px 0; color: #cbd5e1; }
+  .report-content ul, .report-content ol { margin: 8px 0 8px 24px; color: #cbd5e1; }
+  .report-content strong { color: #f1f5f9; }
+  .report-content code {
+    background: rgba(0,0,0,0.3); padding: 2px 6px;
+    border-radius: 4px; font-size: 0.9em;
+  }
+
+  .sub-reports { margin-top: 20px; }
+  .sub-report {
+    margin-top: 10px; border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 8px; overflow: hidden;
+  }
+  .sub-report-header {
+    padding: 12px 16px; background: rgba(15, 23, 42, 0.6);
+    cursor: pointer; display: flex; justify-content: space-between;
+    font-size: 14px; color: #e2e8f0;
+  }
+  .sub-report-header:hover { background: rgba(15, 23, 42, 0.9); }
+  .sub-report-body {
+    display: none; padding: 16px; background: rgba(15, 23, 42, 0.4);
+    font-size: 13px; line-height: 1.7;
+  }
+  .sub-report-body.show { display: block; }
+
+  .status-bar {
+    margin-top: 14px; padding: 10px 14px;
+    background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 8px; font-size: 13px; color: #93c5fd;
+  }
+  #streamingReport::after {
+  content: '▊';
+  display: inline-block;
+  color: #fbbf24;
+  animation: blink 1s infinite;
+  margin-left: 2px;
+  font-weight: bold;
+}
+@keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎭 SkinQuant</h1>
+    <p class="subtitle">CS2 饰品量化研究团队 · Multi-Agent AI 驱动</p>
+
+    <div class="layout">
+      <!-- 左侧: 输入 -->
+      <div class="card input-section">
+        <h3>💭 你的分析需求</h3>
+        <textarea id="question" placeholder="例如: 帮我分析 AK-47 红线(久经沙场), 现在值不值得入手?"></textarea>
+        <button id="submitBtn" onclick="startAnalysis()">🚀 召唤分析师团队</button>
+        <div class="examples">
+          <div style="margin-top:12px;">💡 试试这些问题:</div>
+          <span class="example-chip" onclick="setQuestion(this)">AK-47 红线(久经沙场)值得买吗?</span>
+          <span class="example-chip" onclick="setQuestion(this)">M4A4 龙王(略有磨损)有套利空间吗?</span>
+          <span class="example-chip" onclick="setQuestion(this)">AWP 二西莫夫(久经沙场)分析</span>
+        </div>
+        <div id="statusBar" class="status-bar" style="display:none;"></div>
+      </div>
+
+      <!-- 右侧: 时间线 + 研报 -->
+      <div>
+        <div class="card timeline-card">
+          <h3>⚡ 团队工作进度</h3>
+          <ul id="timeline" class="timeline">
+            <li style="color:#64748b; font-size:13px;">等待任务开始...</li>
+          </ul>
+        </div>
+
+        <div id="report" class="report card">
+          <h3 style="margin-bottom:16px; color:#f1f5f9;">📋 最终投资研报</h3>
+          <div id="reportContent" class="report-content"></div>
+          <div id="subReports" class="sub-reports"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const timeline = document.getElementById('timeline');
+const report = document.getElementById('report');
+const reportContent = document.getElementById('reportContent');
+const subReports = document.getElementById('subReports');
+const submitBtn = document.getElementById('submitBtn');
+const statusBar = document.getElementById('statusBar');
+
+const agentNodes = {}; // 记录每个 agent 的 DOM 节点, 方便更新状态
+
+function setQuestion(el) {
+  document.getElementById('question').value = el.textContent;
+}
+
+function addTimelineItem(id, title, time, status = 'running') {
+  const li = document.createElement('li');
+  li.className = 'timeline-item ' + status;
+  li.innerHTML = `<div class="tl-title">${title}</div><div class="tl-time">${time}</div>`;
+  timeline.appendChild(li);
+  if (id) agentNodes[id] = li;
+  return li;
+}
+
+function updateTimelineItem(id, title, time, status) {
+  const node = agentNodes[id];
+  if (!node) return;
+  node.className = 'timeline-item ' + status;
+  node.innerHTML = `<div class="tl-title">${title}</div><div class="tl-time">${time}</div>`;
+}
+
+async function startAnalysis() {
+  const question = document.getElementById('question').value.trim();
+  if (!question) { alert('请输入问题'); return; }
+
+  // 重置 UI
+  timeline.innerHTML = '';
+  report.classList.remove('show');
+  reportContent.innerHTML = '';
+  subReports.innerHTML = '';
+  Object.keys(agentNodes).forEach(k => delete agentNodes[k]);
+  submitBtn.disabled = true;
+  submitBtn.textContent = '⏳ 分析师团队工作中...';
+  statusBar.style.display = 'block';
+  statusBar.textContent = '🔌 建立连接中...';
+
+  try {
+    const resp = await fetch('/api/analyze/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question }),
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+    statusBar.textContent = '📡 SSE 连接已建立,接收进度中...';
+
+    // 解析 SSE 流: 把 ReadableStream 按行读取
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // SSE 消息以双换行分隔
+      const chunks = buffer.split('\n\n');
+      buffer = chunks.pop(); // 最后一段可能不完整, 留到下次
+      for (const chunk of chunks) {
+        if (!chunk.trim()) continue;
+        const lines = chunk.split('\n');
+        let eventName = '', data = '';
+        for (const line of lines) {
+          if (line.startsWith('event:')) eventName = line.slice(6).trim();
+          else if (line.startsWith('data:')) data += line.slice(5).trim();
+        }
+        if (!eventName) continue;
+        handleEvent(eventName, JSON.parse(data));
+      }
+    }
+  } catch (err) {
+    statusBar.textContent = '❌ 错误: ' + err.message;
+    statusBar.style.background = 'rgba(239,68,68,0.1)';
+    statusBar.style.borderColor = 'rgba(239,68,68,0.3)';
+    statusBar.style.color = '#fca5a5';
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = '🚀 召唤分析师团队';
+  }
+}
+
+function handleEvent(event, data) {
+  const time = data.timestamp || '';
+  switch (event) {
+    case 'start':
+      addTimelineItem('start', '📌 ' + data.message, time, 'done');
+      break;
+    case 'agent_start':
+      addTimelineItem('agent_' + data.agent_name, '🟡 ' + data.message, time, 'running');
+      break;
+    case 'agent_done':
+      updateTimelineItem('agent_' + data.agent_name, '✅ ' + data.message, time, 'done');
+      break;
+    case 'agent_error':
+      updateTimelineItem('agent_' + data.agent_name, '❌ ' + data.message, time, 'error');
+      break;
+    case 'chief_start':
+      addTimelineItem('chief', '👑 ' + data.message, time, 'running');
+      break;
+    case 'done':
+      updateTimelineItem('chief', '✅ ' + data.message, time, 'done');
+      statusBar.textContent = '✨ 分析完成!';
+      break;
+    case 'token':
+      // 流式 token 到达: 首次创建容器并显示研报区, 之后追加渲染
+      if (!document.getElementById('streamingReport')) {
+        reportContent.innerHTML = '<div id="streamingReport"></div>';
+        subReports.innerHTML = '';
+        report.classList.add('show');
+      }
+      const streamingDiv = document.getElementById('streamingReport');
+      streamingDiv.dataset.raw = (streamingDiv.dataset.raw || '') + (data.text || '');
+      streamingDiv.innerHTML = marked.parse(streamingDiv.dataset.raw);
+      streamingDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      break;
+case 'final_report':
+      // 流式已经把主研报渲染好了, 这里只: 1) 移除光标 2) 追加子报告
+      const finishedDiv = document.getElementById('streamingReport');
+      if (finishedDiv) finishedDiv.id = 'finishedReport'; // 改 id 让光标 CSS 失效
+
+      // 追加 4 位分析师的可折叠子报告
+      if (data.sub_reports && data.sub_reports.length > 0) {
+        let html = '<h4 style="margin-top:16px; color:#94a3b8; font-size:13px;">📂 分析师原始报告</h4>';
+        data.sub_reports.forEach((sr, idx) => {
+          const duration = sr.duration ? (sr.duration / 1e9).toFixed(1) + 's' : '';
+          html += `
+            <div class="sub-report">
+              <div class="sub-report-header" onclick="toggleSubReport(${idx})">
+                <span>📄 ${sr.agent_name} <span style="color:#64748b; font-size:12px;">${duration}</span></span>
+                <span id="arrow-${idx}">▼</span>
+              </div>
+              <div class="sub-report-body" id="body-${idx}">${marked.parse(sr.content || '')}</div>
+            </div>`;
+        });
+        subReports.innerHTML = html;
+      }
+      break;
+    case 'error':
+      addTimelineItem(null, '❌ 错误: ' + (data.error || ''), time, 'error');
+      break;
+  }
+}
+
+function toggleSubReport(idx) {
+  const body = document.getElementById('body-' + idx);
+  const arrow = document.getElementById('arrow-' + idx);
+  const isOpen = body.classList.toggle('show');
+  arrow.textContent = isOpen ? '▲' : '▼';
+}
+</script>
+</body>
+</html>

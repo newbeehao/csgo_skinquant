@@ -14,17 +14,15 @@ import (
 
 // Orchestrator 是多 Agent 团队的总调度器
 type Orchestrator struct {
-	// 四个下游分析师
 	marketAnalyst *agent.Agent
 	arbHunter     *agent.Agent
 	intelResearch *agent.Agent
 	riskAnalyst   *agent.Agent
+	chief         *agent.Agent
 
-	// 首席策略官 (综合报告)
-	chief *agent.Agent
-
-	// 可选: 进度回调, 用于 SSE 推送给前端 (阶段 9 会用)
-	onProgress func(event ProgressEvent)
+	cbMu         sync.Mutex
+	onProgress   func(event ProgressEvent)
+	onChiefToken func(token string) // 新增: Chief 流式 token 回调
 }
 
 // ProgressEvent 是调度过程中的进度事件
@@ -58,12 +56,14 @@ func New(cfg Config) *Orchestrator {
 	}
 }
 
-// emit 安全地触发进度回调 (nil 检查)
 func (o *Orchestrator) emit(phase, agentName, message string) {
-	if o.onProgress == nil {
+	o.cbMu.Lock()
+	cb := o.onProgress
+	o.cbMu.Unlock()
+	if cb == nil {
 		return
 	}
-	o.onProgress(ProgressEvent{
+	cb(ProgressEvent{
 		Phase:     phase,
 		AgentName: agentName,
 		Message:   message,
@@ -164,7 +164,18 @@ func (o *Orchestrator) Run(ctx context.Context, userQuestion string) (*FinalRepo
 	}
 	chiefInput += "\n原始用户问题: " + userQuestion
 
-	chiefContent, err := o.chief.Run(ctx, chiefInput)
+	// Chief 使用流式输出 (如果外部注册了回调)
+	// 没有回调时降级为非流式, teamtest 这种终端场景不受影响
+	o.cbMu.Lock()
+	chiefCb := o.onChiefToken
+	o.cbMu.Unlock()
+
+	var chiefContent string
+	if chiefCb != nil {
+		chiefContent, err = o.chief.RunStream(ctx, chiefInput, chiefCb)
+	} else {
+		chiefContent, err = o.chief.Run(ctx, chiefInput)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("首席策略官执行失败: %w", err)
 	}
@@ -183,3 +194,20 @@ func (o *Orchestrator) Run(ctx context.Context, userQuestion string) (*FinalRepo
 
 // 让编译器相信我们 import 了 errgroup (实际上在简化版里暂时没直接用, 但留在 import 里方便未来扩展)
 var _ = errgroup.Group{}
+
+// SetProgressCallback 在运行时设置进度回调
+// 每个 HTTP 请求可以设置自己的回调, 之后调用 Run 即可
+// 注意: 如果多请求并发, 需要外部保证回调的线程安全 (我们下面会加锁)
+func (o *Orchestrator) SetProgressCallback(cb func(ProgressEvent)) {
+	o.cbMu.Lock()
+	defer o.cbMu.Unlock()
+	o.onProgress = cb
+}
+
+// SetChiefTokenCallback 设置 Chief 的流式 token 回调
+// 每当 Chief 生成一个 token 就触发一次, 用于 SSE 流式推送
+func (o *Orchestrator) SetChiefTokenCallback(cb func(token string)) {
+	o.cbMu.Lock()
+	defer o.cbMu.Unlock()
+	o.onChiefToken = cb
+}

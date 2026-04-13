@@ -144,3 +144,62 @@ func truncate(s string, n int) string {
 	}
 	return s[:n] + "..."
 }
+
+// RunStream 执行 Agent 任务, 在最后一轮 (纯文本输出) 流式推送 token
+// onDelta: 每收到一个 token 就调用一次, 用于实时推给前端
+// 返回值: 完整文本, 和错误
+//
+// 设计说明: 工具调用轮次仍是非流式 (因为流式工具调用协议复杂)
+// 只有"模型决定不再调用工具, 开始生成最终回答"的那一轮才切换成流式
+func (a *Agent) RunStream(
+	ctx context.Context,
+	userMessage string,
+	onDelta func(token string),
+) (string, error) {
+	messages := []llm.Message{
+		{Role: "system", Content: a.systemPrompt},
+		{Role: "user", Content: userMessage},
+	}
+	toolDefs := a.registry.Definitions()
+
+	log.Printf("🤖 [%s] 开始流式处理任务", a.name)
+
+	for turn := 1; turn <= a.maxTurns; turn++ {
+		log.Printf("🔄 [%s] 第 %d 轮: 调用 LLM (探测轮)", a.name, turn)
+
+		// 探测轮: 非流式调用, 看 LLM 想调工具还是直接回答
+		resp, err := a.llmClient.Chat(ctx, messages, toolDefs)
+		if err != nil {
+			return "", fmt.Errorf("[%s] 第%d轮 LLM 调用失败: %w", a.name, turn, err)
+		}
+		assistantMsg := resp.Choices[0].Message
+
+		// 情况 A: LLM 想调工具 → 和原 Run 一样处理, 进入下一轮
+		if len(assistantMsg.ToolCalls) > 0 {
+			messages = append(messages, assistantMsg)
+			log.Printf("🔧 [%s] 第 %d 轮: LLM 请求调用 %d 个工具", a.name, turn, len(assistantMsg.ToolCalls))
+			for _, toolCall := range assistantMsg.ToolCalls {
+				toolResult := a.executeToolCall(ctx, toolCall)
+				messages = append(messages, llm.Message{
+					Role:       "tool",
+					ToolCallID: toolCall.ID,
+					Name:       toolCall.Function.Name,
+					Content:    toolResult,
+				})
+			}
+			continue
+		}
+
+		// 情况 B: LLM 没有工具调用 → 最终回答轮, 切换流式重新调用
+		// 注意: 这里会"多"调用一次 LLM (探测 + 流式) 换取简单可靠的流式实现
+		log.Printf("✨ [%s] 第 %d 轮: 最终回答轮, 切换流式模式", a.name, turn)
+		fullContent, err := a.llmClient.ChatStream(ctx, messages, toolDefs, onDelta)
+		if err != nil {
+			return "", fmt.Errorf("[%s] 流式生成失败: %w", a.name, err)
+		}
+		log.Printf("✅ [%s] 流式完成, 共 %d 字符", a.name, len(fullContent))
+		return fullContent, nil
+	}
+
+	return "", fmt.Errorf("[%s] 超过最大轮数 %d", a.name, a.maxTurns)
+}

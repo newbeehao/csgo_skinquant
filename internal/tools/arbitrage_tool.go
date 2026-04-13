@@ -13,7 +13,7 @@ import (
 const (
 	SteamSellerFeeRate = 0.1304 // Steam 卖家实际到手比例: 1 - 0.8696
 	BuffSellerFeeRate  = 0.025  // BUFF 卖家手续费 2.5%
-	YyypSellerFeeRate  = 0.015  // 悠悠有品卖家手续费 1.5%
+	YyypSellerFeeRate  = 0.01   // 悠悠有品卖家手续费 1%
 )
 
 // CalculateArbitrageTool 计算跨平台套利的真实净利润
