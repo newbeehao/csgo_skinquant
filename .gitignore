@@ -1,0 +1,24 @@
+# 编译输出
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# 测试覆盖率
+*.out
+
+./.joycode
+
+# Go 工作区
+vendor/
+
+# 环境变量
+.env
+.env.local
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+*.swo
