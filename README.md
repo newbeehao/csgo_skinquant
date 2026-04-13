@@ -76,8 +76,8 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/YOUR_USERNAME/skinquant.git
-cd skinquant
+git clone https://github.com/newbeehao/csgo_skinquant.git
+cd csgo_skinquant
 
 # 安装依赖
 go mod download
@@ -192,16 +192,6 @@ func (a *Agent) Run(ctx, userMessage) (string, error) {
     return "", 超过最大轮数
 }
 ```
-
-## 📋 开发进度
-
-- [x] 阶段 1-2: 项目骨架 + DeepSeek 客户端
-- [x] 阶段 3: Agent 核心 Function Calling 循环
-- [x] 阶段 4-7: 5 个工具 + 4 个分析师 Agent
-- [x] 阶段 8: 首席策略官 + Go 并发编排 ⭐
-- [ ] 阶段 9: Gin SSE 流式接口
-- [ ] 阶段 10: SQLite 会话持久化 + HTML 前端
-- [ ] 阶段 11: 部署与打磨
 
 ## 🎯 适用场景
 
